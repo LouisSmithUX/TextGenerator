@@ -1,61 +1,52 @@
 #Owner Louis Smith
 
 # import argparse
+import argparse
 import nltk
 from collections import defaultdict
-import random
+import numpy
 
 
 class Main() :
 	def __init__(self): 
 
-		with open("data.txt","r") as data:
-			self.words = nltk.word_tokenize(data.read())
+		parser = argparse.ArgumentParser(description='Input txt file.')
+		parser.add_argument('texts', metavar='i', type=str, nargs='+',
+	                   help='input text')
+
+		parser.parse_args(namespace=self)
+
+		self.words=[]
+		for text in self.texts:
+			try:
+				with open(text,"r") as data:
+					self.words += [w for w in nltk.word_tokenize(data.read()) if not w.isnumeric()]
+			except FileNotFoundError:
+				print("That's not a file you moron!")
+				raise SystemExit()
 
 		self.bigramFreq = self.buildBigramFreq(self.words)
 
 		currentWord = self.getMostCommon(self.words)
-		for i in range(50):
-			print (currentWord, end= ' ')
-			randomIndex = random.random()
-			for keyIntervals,valIntervals in self.bigramFreq[currentWord].items():
-				if randomIndex>keyIntervals[0] and randomIndex<keyIntervals[1]:
-					currentWord = valIntervals
 
+		self.generate(self.bigramFreq,currentWord)
 
 	def buildBigramFreq(self, words):
-			bigrams = list(nltk.bigrams(words))
+		bigrams = list(nltk.bigrams(words))
 
-			spread = defaultdict(lambda: [])
+		cfdist = nltk.ConditionalFreqDist(bigrams)
+		for word,wordFreqDist in cfdist.items():
+			sumTotal = sum(wordFreqDist.values())
+			for bigramword,prob in wordFreqDist.items():
+				cfdist[word][bigramword] = prob/sumTotal
 
-			for bigram in bigrams:
-				spread[bigram[0]].append(bigram[1])
+		return cfdist
 
-			for key,val in spread.items():
-				totalNumberOfValues = len(val)
-				probabilityChunks = defaultdict(lambda: 0)
-				runningTotal = 0
-				for v in set(val):
-					proportion = val.count(v)/totalNumberOfValues
-					probabilityChunks[(runningTotal,runningTotal+proportion)] = v
-					runningTotal += proportion
-				spread[key] = probabilityChunks
-
-			return spread
-
-# 			def generate_model(cfdist, word, num=15):
-#     for i in range(num):
-#         print(word, end=' ')
-#         word = cfdist[word].max()
-
-# text = nltk.corpus.genesis.words('english-kjv.txt')
-# bigrams = nltk.bigrams(text)
-# cfd = nltk.ConditionalFreqDist(bigrams) [1]
- 	
-# >>> cfd['living']
-# FreqDist({'creature': 7, 'thing': 4, 'substance': 2, ',': 1, '.': 1, 'soul': 1})
-# >>> generate_model(cfd, 'living')
-# living creature that he said , and the land of the land of the land
+	def generate(self,cfdist, word, num=150):
+		for i in range(num):
+			print(word, end=' ')
+			nextWords,weights = list(zip(*[(word,prob) for word,prob in cfdist[word].items()]))
+			word = numpy.random.choice(nextWords,p=weights)
 
 	def getMostCommon(self,words):
 			return nltk.FreqDist(words).most_common()[0][0]
